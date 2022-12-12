@@ -9,8 +9,7 @@ def _expand_icd_codes(codes):
         if '.' in code:
             part1, part2 = code.split('.')
             result.append(part1)
-            for i in range(1, len(part2)):
-                result.append('.'.join([part1, part2[:i]]))
+            result.extend('.'.join([part1, part2[:i]]) for i in range(1, len(part2)))
         result.append(code)
     return sorted(set(result))
 
@@ -77,9 +76,11 @@ class ICDBase(RegexVocabulary, LexicographicPatternMatchVocabulary, Lexicographi
             LexicographicVocabulary.__init__(self, _expand_icd_codes(self.terminal_lexicon_set))
     
     def _match_pattern(self, pattern):
-        if '*' not in pattern and pattern not in self.terminal_lexicon_set and self.treat_nonterminal_as_pattern:
-            result = fnmatch.filter(self.raw_sorted_lexicon, pattern + '*')
-        else:
-            result = fnmatch.filter(self.raw_sorted_lexicon, pattern)
-        return result
+        return (
+            fnmatch.filter(self.raw_sorted_lexicon, f'{pattern}*')
+            if '*' not in pattern
+            and pattern not in self.terminal_lexicon_set
+            and self.treat_nonterminal_as_pattern
+            else fnmatch.filter(self.raw_sorted_lexicon, pattern)
+        )
     

@@ -22,10 +22,10 @@ class UBREV(RegexVocabulary, NoWildcardsVocabulary, NoCheckVocabulary, RevenueSo
         start_number, start_letter = _ubrev_split(start)
         end_number, end_letter = _ubrev_split(end)
         assert start_letter == end_letter
-        result = []
-        for num in range(int(start_number), int(end_number) + 1):
-            result.append(_ubrev_join(num, start_letter))
-        return result
+        return [
+            _ubrev_join(num, start_letter)
+            for num in range(int(start_number), int(end_number) + 1)
+        ]
     
     @staticmethod
     def _standardize(code):

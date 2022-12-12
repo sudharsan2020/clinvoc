@@ -7,17 +7,12 @@ def parse_code(code):
     code = code.upper()
     assert code[0] != ' '
     code = code.strip()
-    if len(code) > 3:
-        result = code[:3] + '.' + code[3:]
-    else:
-        result = code
-    return result
+    return f'{code[:3]}.{code[3:]}' if len(code) > 3 else code
 
 def _read_text_file(filename):
     result = []
     with open(filename, 'rt') as infile:
-        for line in infile:
-            result.append(line[:7])
+        result.extend(line[:7] for line in infile)
     return result
 
 def _standardize_icd10(code, use_decimals=False):
@@ -25,13 +20,13 @@ def _standardize_icd10(code, use_decimals=False):
     if use_decimals:
         if '.' in code_:
             pre, post = code_.split('.')
-            result = left_pad(pre, 3) + '.' + post
+            result = f'{left_pad(pre, 3)}.{post}'
         else:
             result = left_pad(code_, 3)
     else:
         result = code_[:3]
         if len(code_) > 3:
-            result += '.' + code_[3:]
+            result += f'.{code_[3:]}'
     return result
     
 _all_icd10_pcs_codes = list(map(_standardize_icd10, _read_text_file(os.path.join(resources, 'icd10pcs_codes_2016.txt'))))

@@ -38,7 +38,7 @@ def test_icd10_pcs():
   
 def test_icd10_union():
     vocab = ICD10CM(match_terminal_only=True) | ICD10PCS(match_terminal_only=True, use_leading_zeros=True)
-    assert_equal(vocab.parse("'0210093', ‘Z00.121’"), set(['021.0093', 'Z00.121']))
+    assert_equal(vocab.parse("'0210093', ‘Z00.121’"), {'021.0093', 'Z00.121'})
     
 def test_icd9_cm():
     vocab = ICD9CM(match_terminal_only=True)

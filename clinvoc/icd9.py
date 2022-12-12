@@ -6,32 +6,25 @@ from .icd import ICDBase
 def _read_text_file(filename):
     result = []
     with open(filename, 'rt') as infile:
-        for line in infile:
-            result.append(line[:5])
+        result.extend(line[:5] for line in infile)
     return result
 
 def _standardize_icd9_cm(code, use_decimals=False):
     code_ = code.strip().upper()
     if use_decimals:
         pre_len = 4 if code_[0] == 'E' else 3
-        if '.' in code_:
-            pre, post = code_.split('.')
-            result = left_pad(pre, pre_len) + '.' + post
-        else:
+        if '.' not in code_:
             return left_pad(code_, pre_len)
+        pre, post = code_.split('.')
+        result = f'{left_pad(pre, pre_len)}.{post}'
+    elif code_[0] == 'V' or code_[0] != 'E':
+        result = code_[:3]
+        if len(code_) > 3:
+            result += f'.{code_[3:]}'
     else:
-        if code_[0] == 'V':
-            result = code_[:3]
-            if len(code_) > 3:
-                result += '.' + code_[3:]
-        elif code_[0] == 'E':
-            result = code_[:4]
-            if len(code_) > 4:
-                result += '.' + code_[4:]
-        else:
-            result = code_[:3] 
-            if len(code_) > 3:
-                result += '.' + code_[3:]
+        result = code_[:4]
+        if len(code_) > 4:
+            result += f'.{code_[4:]}'
     return result
 
 def _standardize_icd9_pcs(code, use_decimals=False):
@@ -39,13 +32,13 @@ def _standardize_icd9_pcs(code, use_decimals=False):
     if use_decimals:
         if '.' in code_:
             pre, post = code_.split('.')
-            result = left_pad(pre, 2) + '.' + post
+            result = f'{left_pad(pre, 2)}.{post}'
         else:
             result = left_pad(code_, 2)
     else:
-        result = code_[:2] 
+        result = code_[:2]
         if len(code_) > 2:
-            result += '.' + code_[2:]
+            result += f'.{code_[2:]}'
     return result
 
 _all_icd9_cm_codes = list(map(_standardize_icd9_cm, _read_text_file(os.path.join(resources, 'CMS32_DESC_SHORT_DX.txt'))))

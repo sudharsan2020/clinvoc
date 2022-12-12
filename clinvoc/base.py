@@ -152,7 +152,7 @@ class Vocabulary(object):
         standardized_pattern = self.standardize(pattern)
         result = self._match_pattern(standardized_pattern)
         if not result and '*' not in pattern:
-            result = set([standardized_pattern])
+            result = {standardized_pattern}
         return result
     
     def strict_match_pattern(self, pattern):
@@ -242,13 +242,13 @@ class RevenueSourceVocabulary(Vocabulary):
 @memoize
 def create_parser(regexes, pattern_matchers, range_fillers, quote_pairs=[('\'','\''), ('"','"')], delimiters=[','], 
                   require_quotes=False, require_delimiter=False, allow_empty=True):
-    if isinstance(regexes, string_types) or isinstance(regexes, re._pattern_type):
+    if isinstance(regexes, (string_types, re._pattern_type)):
         regexes = [regexes]
         pattern_matchers = [pattern_matchers]
         range_fillers = [range_fillers]
     assert len(regexes) == len(pattern_matchers)
     assert len(regexes) == len(range_fillers)
-    
+
     code_patterns = list(starmap(lambda regex, pattern_matcher: Regex(regex).setParseAction(lambda s, loc, toks: frozenset(pattern_matcher(toks[0]))), zip(regexes, pattern_matchers)))
     if require_quotes:
         quoted_code_patterns = [NoMatch() for _ in code_patterns]
@@ -256,10 +256,10 @@ def create_parser(regexes, pattern_matchers, range_fillers, quote_pairs=[('\'','
         quoted_code_patterns = code_patterns
     for opener, closer in quote_pairs:
         quoted_code_patterns = list(starmap(lambda quoted_code_pattern, code_pattern: quoted_code_pattern | (Literal(opener).suppress() + code_pattern + Literal(closer).suppress()), zip(quoted_code_patterns, code_patterns)))
-    
+
     code_ranges = map(lambda quoted_code_pattern: quoted_code_pattern + Literal('-').suppress() + quoted_code_pattern, quoted_code_patterns)
     code_ranges = list(starmap(lambda code_range, range_filler: code_range.setParseAction(lambda s, loc, toks: frozenset(range_filler(toks[0], toks[1]))), zip(code_ranges, range_fillers)))
-    
+
     quoted_code_ranges = [NoMatch() for _ in code_ranges]
     for opener, closer in quote_pairs:
         quoted_code_ranges = list(starmap(lambda quoted_code_range, code_pattern: quoted_code_range | (Literal(opener).suppress() + code_pattern + Literal('-').suppress() + code_pattern + Literal(closer).suppress()), zip(quoted_code_ranges, code_patterns)))
@@ -273,8 +273,12 @@ def create_parser(regexes, pattern_matchers, range_fillers, quote_pairs=[('\'','
     code_list_continuation = any_delim.suppress() + (any_code_range | quoted_code_pattern)
     if not require_delimiter:
         code_list_continuation |= White().suppress() + (any_code_range | quoted_code_pattern)
-    code_list = (any_code_range | quoted_code_pattern) + ZeroOrMore(code_list_continuation) + Optional(reduce(or_, map(Literal, delimiters))).suppress() + StringEnd()
-    return code_list
+    return (
+        (any_code_range | quoted_code_pattern)
+        + ZeroOrMore(code_list_continuation)
+        + Optional(reduce(or_, map(Literal, delimiters))).suppress()
+        + StringEnd()
+    )
 
 all_quote_pairs = (('\'','\''), ('"','"'), ('‘','’'))
 class RegexVocabularyBase(Vocabulary):
@@ -284,14 +288,16 @@ class RegexVocabulary(RegexVocabularyBase):
     def __init__(self, regex, ignore_case=False):
         if ignore_case:
             self.regex = re.compile(regex, re.IGNORECASE)
-            self.exact_regex = re.compile('^%s$' % regex, re.IGNORECASE)
+            self.exact_regex = re.compile(f'^{regex}$', re.IGNORECASE)
         else:
             self.regex = re.compile(regex)
-            self.exact_regex = re.compile('^%s$' % regex)
+            self.exact_regex = re.compile(f'^{regex}$')
     
     def standardize(self, code):
         code_ = code.strip()
-        assert self.exact_regex.match(code_), '%s is not a properly formatted code for %s' % (code, type(self).__name__)
+        assert self.exact_regex.match(
+            code_
+        ), f'{code} is not a properly formatted code for {type(self).__name__}'
         return self._standardize(code_)
     
     @abstractmethod
@@ -315,17 +321,21 @@ class RegexVocabulary(RegexVocabularyBase):
 
 class NoCheckVocabulary(Vocabulary):
     def check(self, code):
-        raise NotImplementedError('%s does not support checking against a fixed lexicon.' % type(self).__name__)
+        raise NotImplementedError(
+            f'{type(self).__name__} does not support checking against a fixed lexicon.'
+        )
     
 class NoWildcardsVocabulary(Vocabulary):
     def _match_pattern(self, pattern):
         if '*' in pattern:
-            raise NotImplementedError('%s does not support wildcards.' % type(self).__name__)
-        return set([pattern])
+            raise NotImplementedError(f'{type(self).__name__} does not support wildcards.')
+        return {pattern}
 
 class NoRangeFillVocabulary(Vocabulary):
     def _fill_range(self, lower, upper):
-        raise NotImplementedError('%s does not support range filling.' % type(self).__name__)
+        raise NotImplementedError(
+            f'{type(self).__name__} does not support range filling.'
+        )
     
 class RegexUnionVocabulary(RegexVocabularyBase, NoWildcardsVocabulary, NoRangeFillVocabulary, NoCheckVocabulary):
     '''
@@ -336,17 +346,23 @@ class RegexUnionVocabulary(RegexVocabularyBase, NoWildcardsVocabulary, NoRangeFi
     
     @property
     def vocab_name(self):
-        return '_U_'.join(sorted(set([arg.vocab_name for arg in self.arguments])))
+        return '_U_'.join(sorted({arg.vocab_name for arg in self.arguments}))
     
     @property
     def vocab_domain(self):
-        return '_U_'.join(sorted(set([arg.vocab_domain for arg in self.arguments])))
+        return '_U_'.join(sorted({arg.vocab_domain for arg in self.arguments}))
     
     def parse(self, expression,  quote_pairs=all_quote_pairs,
               delimiters=(',',), require_quotes=False, require_delimiter=False):
-        parser = create_parser(tuple([arg.regex for arg in self.arguments]), tuple([arg.match_pattern for arg in self.arguments]), 
-                               tuple([arg.fill_set_range for arg in self.arguments]), quote_pairs=tuple(quote_pairs),
-                               delimiters=tuple(delimiters), require_quotes=require_quotes, require_delimiter=require_delimiter)
+        parser = create_parser(
+            tuple(arg.regex for arg in self.arguments),
+            tuple(arg.match_pattern for arg in self.arguments),
+            tuple(arg.fill_set_range for arg in self.arguments),
+            quote_pairs=tuple(quote_pairs),
+            delimiters=tuple(delimiters),
+            require_quotes=require_quotes,
+            require_delimiter=require_delimiter,
+        )
         return set(chain(*parser.parseString(expression)))
     
     def __or__(self, other):
@@ -366,7 +382,7 @@ class RegexUnionVocabulary(RegexVocabularyBase, NoWildcardsVocabulary, NoRangeFi
                 return arg.standardize(code)
             except:
                 pass
-        assert False, 'Code %s is not valid.' % code
+        assert False, f'Code {code} is not valid.'
         
 class LexiconVocabulary(Vocabulary):
     def __init__(self, lexicon):

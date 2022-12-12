@@ -105,18 +105,15 @@ class CodeCollection(object):
             infile = open(path_or_file, 'r')
         else:
             infile = path_or_file
-        
+
         # Figure out header
         reader = csv.reader(infile, **csv_kwargs)
-        if header == True:
-            header = next(reader)
-        else:
-            header = header
+        header = next(reader) if header == True else header
         header_map = None
         first = True
-        
+
         # Parse the file
-        results = list()
+        results = []
         for i, row in enumerate(reader):
             if header == False:
                 header = list(range(len(row)))
@@ -147,7 +144,7 @@ class CodeCollection(object):
                     except ParseException:
                         raise ValueError('Unable to parse field %s of row %d: "%s"' % 
                                          (str(vocab_key), i, str(to_parse)))
-        
+
         # Instantiate the CodeCollection objects
         return cls(*results, levels=levels, name=name)
         
@@ -156,18 +153,23 @@ class CodeCollection(object):
     def to_ascii_table(self):
         table_data = tuple(map(flatten(1), sorted(valmap(', '.join, keymap(flatten(float('inf')), self.dict)).items())))
         header = [[x if isinstance(x, string_types) else '' for x in self.levels] + ['',],]
-        table = AsciiTable(header + list(map(list, table_data)), 'Collection: %s' % self.name)
-        return table
+        return AsciiTable(
+            header + list(map(list, table_data)), f'Collection: {self.name}'
+        )
         
     def __eq__(self, other):
-        if not isinstance(other, CodeCollection):
-            return NotImplemented
-        return ((self.name == other.name) and 
-                (self.keys == other.keys) and
-                (self.dict == other.dict) and
-                (self.levels == other.levels) and
-                (self.key_size == other.key_size) and 
-                (self.level_index == other.level_index))
+        return (
+            (
+                (self.name == other.name)
+                and (self.keys == other.keys)
+                and (self.dict == other.dict)
+                and (self.levels == other.levels)
+                and (self.key_size == other.key_size)
+                and (self.level_index == other.level_index)
+            )
+            if isinstance(other, CodeCollection)
+            else NotImplemented
+        )
     
     def __len__(self):
         return len(self.dict)
@@ -187,15 +189,14 @@ class CodeCollection(object):
         for i, arg in enumerate(args):
             result[i] = arg
             used.add(i)
-        
+
         for k, v in kwargs.items():
             i = self.level_index[k]
             if i in used:
-                raise KeyError('Key %s appears more than once.' % k)
-            else:
-                result[i] = v
-                used.add(i)
-        
+                raise KeyError(f'Key {k} appears more than once.')
+            result[i] = v
+            used.add(i)
+
         return tuple(result)
     
     def _is_concrete_key(self, key):
@@ -206,10 +207,10 @@ class CodeCollection(object):
     
     def get(self, *args, **kwargs):
         key = self._process_key_args(*args, **kwargs)
-        keys = self._key_match(key)
-        if not keys:
+        if keys := self._key_match(key):
+            return reduce(or_, map(self.dict.get, keys), set())
+        else:
             raise KeyError()
-        return reduce(or_, map(self.dict.get, keys), set())
     
     def __getitem__(self, key):
         return self.get(*key)
@@ -223,7 +224,7 @@ class CodeCollection(object):
         if not levels:
             levels = self.levels
         ker = self._levels_kernel(levels)
-        result_dict = dict()
+        result_dict = {}
         for k, v in self.dict.items():
             kernel = ker(k)
             if kernel not in result_dict:
@@ -239,7 +240,11 @@ class CodeCollection(object):
         items = defaultdict(set)
         for i, k, v in chain(*map(lambda tup: [(tup[0], k_, v_) for k_, v_ in tup[1].dict.items()], enumerate(pieces))):
             k_size = len(k)
-            key = tuple([filler(i,j) for j in range(offsets[i])]) + k + tuple([filler(i,j) for j in range(offsets[i] + k_size, size)])
+            key = (
+                tuple(filler(i, j) for j in range(offsets[i]))
+                + k
+                + tuple(filler(i, j) for j in range(offsets[i] + k_size, size))
+            )
             items[key].update(v)
         return items.items()
     

@@ -7,11 +7,11 @@ class CodeMap(object):
             self.standardizers = standardizers
         else:
             self.standardizers = code_system_standardizers(**kwargs)
-        index = dict()
+        index = {}
         for tup, code_set in self.code_sets.items():
             code_system = tup[code_system_level]
             value = tup[:code_system_level] + tup[(code_system_level):][1:]
-            index[code_system] = index.get(code_system, dict())
+            index[code_system] = index.get(code_system, {})
             for code in map(self.standardizers[code_system], code_set):
                 index[code_system][code] = index[code_system].get(code, set())
                 index[code_system][code].add(value)

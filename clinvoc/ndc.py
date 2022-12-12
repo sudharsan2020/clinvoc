@@ -12,9 +12,7 @@ def _read_text_file(filename):
     with open(filename, 'rt') as infile:
         reader = csv.reader(infile, delimiter='\t')
         next(reader)
-        _all_ndc_codes = []
-        for row in reader:
-            _all_ndc_codes.append(row[2])
+        _all_ndc_codes = [row[2] for row in reader]
     return _all_ndc_codes
 
 _all_ndc_codes = _read_text_file(os.path.join(resources, 'ndctext', 'package.txt'))
@@ -31,14 +29,13 @@ class NDC(RegexVocabulary, LexiconVocabulary, MedicationVocabulary): # Diamond i
                                                                   pattern))))))
     
     def _standardize(self, code):
-        if '-' in code:
-            part1, part2, part3 = code.split('-')
-            part1 = left_pad(part1, 5)
-            part2 = left_pad(part2, 4)
-            part3 = left_pad(part3, 2)
-            return part1 + part2 + part3
-        else:
+        if '-' not in code:
             return left_pad(code, 11)
+        part1, part2, part3 = code.split('-')
+        part1 = left_pad(part1, 5)
+        part2 = left_pad(part2, 4)
+        part3 = left_pad(part3, 2)
+        return part1 + part2 + part3
     
     def _fill_range(self, start, end):
         raise NotImplementedError('NDC does not support range filling')
